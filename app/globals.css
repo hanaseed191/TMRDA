@@ -1,103 +1,235 @@
-@import url('https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
-@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css');
+/* Sarabun is only used inside printable official documents */
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --font-prompt: 'Prompt', sans-serif;
-  --background: #ffffff;
-  --foreground: #09090b;
-  --card: #ffffff;
-  --card-foreground: #09090b;
-  --popover: #ffffff;
-  --popover-foreground: #09090b;
-  --primary: #dc2626;
-  --primary-foreground: #ffffff;
-  --secondary: #18181b;
-  --secondary-foreground: #ffffff;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #f4f4f5;
-  --accent-foreground: #09090b;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #dc2626;
-  --radius: 0.5rem;
+@layer base {
+  /* Theme tokens (RGB channels). Light is the default; .dark on <html> swaps them.
+     .light-scope forces light values inside it (printable documents). */
+  :root,
+  .light-scope,
+  .dark .light-scope {
+    color-scheme: light;
+    --surface: 255 255 255;
+    --canvas: 247 247 248;
+    --zinc-50: 250 250 250;
+    --zinc-100: 244 244 245;
+    --zinc-200: 228 228 231;
+    --zinc-300: 212 212 216;
+    --zinc-400: 161 161 170;
+    --zinc-500: 113 113 122;
+    --zinc-600: 82 82 91;
+    --zinc-700: 63 63 70;
+    --zinc-800: 39 39 42;
+    --zinc-900: 24 24 27;
+    --zinc-950: 9 9 11;
+    --brand-50: 254 242 242;
+    --brand-100: 254 226 226;
+    --brand-200: 254 202 202;
+    --brand-300: 252 165 165;
+    --brand-700: 185 28 28;
+    --brand-800: 153 27 27;
+    --brand-900: 127 29 29;
+    --brand-950: 69 10 10;
+    --emerald-50: 236 253 245;
+    --emerald-100: 209 250 229;
+    --emerald-200: 167 243 208;
+    --emerald-300: 110 231 183;
+    --emerald-700: 4 120 87;
+    --emerald-800: 6 95 70;
+    --emerald-900: 6 78 59;
+    --emerald-950: 2 44 34;
+    --amber-50: 255 251 235;
+    --amber-100: 254 243 199;
+    --amber-200: 253 230 138;
+    --amber-300: 252 211 77;
+    --amber-700: 180 83 9;
+    --amber-800: 146 64 14;
+    --amber-900: 120 53 15;
+    --amber-950: 69 26 3;
+    --sky-50: 240 249 255;
+    --sky-100: 224 242 254;
+    --sky-200: 186 230 253;
+    --sky-300: 125 211 252;
+    --sky-700: 3 105 161;
+    --sky-800: 7 89 133;
+    --sky-900: 12 74 110;
+    --sky-950: 8 47 73;
+    --violet-50: 245 243 255;
+    --violet-100: 237 233 254;
+    --violet-200: 221 214 254;
+    --violet-300: 196 181 253;
+    --violet-700: 109 40 217;
+    --violet-800: 91 33 182;
+    --violet-900: 76 29 149;
+    --violet-950: 46 16 101;
+    --rose-50: 255 241 242;
+    --rose-100: 255 228 230;
+    --rose-200: 254 205 211;
+    --rose-300: 253 164 175;
+    --rose-700: 190 18 60;
+    --rose-800: 159 18 57;
+    --rose-900: 136 19 55;
+    --rose-950: 76 5 25;
+    }
+
+  .dark {
+    color-scheme: dark;
+    --surface: 17 17 19;
+    --canvas: 9 9 11;
+    --zinc-50: 24 24 27;
+    --zinc-100: 31 31 35;
+    --zinc-200: 42 42 47;
+    --zinc-300: 58 58 64;
+    --zinc-400: 113 113 122;
+    --zinc-500: 145 145 154;
+    --zinc-600: 165 165 174;
+    --zinc-700: 198 198 206;
+    --zinc-800: 222 222 227;
+    --zinc-900: 237 237 241;
+    --zinc-950: 247 247 249;
+    --brand-50: 44 23 25;
+    --brand-100: 61 27 29;
+    --brand-200: 88 33 35;
+    --brand-300: 128 43 44;
+    --brand-700: 248 113 113;
+    --brand-800: 252 165 165;
+    --brand-900: 254 202 202;
+    --brand-950: 254 226 226;
+    --emerald-50: 17 37 32;
+    --emerald-100: 17 51 41;
+    --emerald-200: 17 71 54;
+    --emerald-300: 17 101 74;
+    --emerald-700: 52 211 153;
+    --emerald-800: 110 231 183;
+    --emerald-900: 167 243 208;
+    --emerald-950: 209 250 229;
+    --amber-50: 44 34 18;
+    --amber-100: 63 45 17;
+    --amber-200: 90 62 16;
+    --amber-300: 131 88 15;
+    --amber-700: 251 191 36;
+    --amber-800: 252 211 77;
+    --amber-900: 253 230 138;
+    --amber-950: 254 243 199;
+    --sky-50: 17 35 45;
+    --sky-100: 16 47 62;
+    --sky-200: 16 64 87;
+    --sky-300: 16 91 126;
+    --sky-700: 56 189 248;
+    --sky-800: 125 211 252;
+    --sky-900: 186 230 253;
+    --sky-950: 224 242 254;
+    --violet-50: 32 26 46;
+    --violet-100: 41 32 64;
+    --violet-200: 56 41 92;
+    --violet-300: 78 55 133;
+    --violet-700: 167 139 250;
+    --violet-800: 196 181 253;
+    --violet-900: 221 214 254;
+    --violet-950: 237 233 254;
+    --rose-50: 44 23 28;
+    --rose-100: 62 26 34;
+    --rose-200: 90 32 43;
+    --rose-300: 131 40 57;
+    --rose-700: 251 113 133;
+    --rose-800: 253 164 175;
+    --rose-900: 254 205 211;
+    --rose-950: 255 228 230;
+  
+    }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-[0.9375rem] leading-relaxed text-zinc-900 antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight text-zinc-950;
+  }
+
+  ::selection {
+    @apply bg-brand-600/15 text-zinc-950;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-600/40 ring-offset-2 ring-offset-surface;
+  }
+
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full border-[3px] border-solid border-transparent bg-zinc-300 bg-clip-padding;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-400;
+  }
 }
 
-/* ============================================
-   GLOBAL TYPOGRAPHY STANDARD (มาตรฐานฟอนต์ทั้งระบบ)
-   - Base: 14px (text-sm) สำหรับเนื้อหาทั่วไป
-   - Headings: 18-20px (text-lg / text-xl)
-   - Labels: 14px bold
-   - Inputs: 14px, height 40px
-   - Buttons: 14px bold
-   - Captions: 12px (text-xs) เฉพาะคำอธิบายย่อย
-   ============================================ */
+@layer components {
+  /* Shared form control look (used by <Input>, <Select>, <Textarea>) */
+  .control {
+    @apply block w-full rounded-xl border border-zinc-200 bg-surface px-3.5 text-[0.9375rem] text-zinc-900 shadow-[0_1px_0_rgb(24_24_27/0.03)] transition placeholder:text-zinc-400 hover:border-zinc-300 focus:border-brand-500 focus:shadow-ring focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500 aria-[invalid=true]:border-brand-500 aria-[invalid=true]:bg-brand-50/30;
+  }
 
-html {
-  font-size: 16px;
-  -webkit-text-size-adjust: 100%;
-}
+  .card {
+    @apply rounded-2xl border border-zinc-200/80 bg-surface shadow-card;
+  }
 
-body {
-  font-family: 'Prompt', sans-serif;
-  background-color: #ffffff;
-  color: #09090b;
-  min-height: 100vh;
-  font-size: 0.875rem; /* 14px base */
-  line-height: 1.6;
-}
+  .eyebrow {
+    @apply text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-zinc-500;
+  }
 
-/* Force Prompt font + 14px on all form controls */
-input, select, textarea, button, option {
-  font-family: 'Prompt', sans-serif;
-  font-size: 0.875rem; /* 14px */
-}
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 
-/* Standard input height */
-input[type="text"],
-input[type="number"],
-input[type="email"],
-input[type="tel"],
-input[type="password"],
-input[type="search"],
-select,
-textarea {
-  min-height: 40px;
+  .bg-grid {
+    background-image: linear-gradient(to right, rgb(24 24 27 / 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(24 24 27 / 0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  .bg-dots-dark {
+    background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
 }
 
-/* Table cells standardized */
-table {
-  font-size: 0.875rem; /* 14px */
-}
-
-th {
-  font-weight: 700;
-  font-size: 0.875rem; /* 14px */
-}
-
-td {
-  font-size: 0.875rem; /* 14px */
-}
-
-/* Custom Scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #f4f4f5;
-}
-::-webkit-scrollbar-thumb {
-  background: #a1a1aa;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #71717a;
+/* Printing: only the element marked .print-area is printed */
+@media print {
+  @page {
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-area {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+  }
 }

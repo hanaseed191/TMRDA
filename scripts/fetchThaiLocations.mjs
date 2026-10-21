@@ -51,7 +51,7 @@ async function generateAllLocationData() {
     };
   });
 
-  const jsonPath = path.join(process.cwd(), 'lib', 'thaiLocationData.json');
+  const jsonPath = path.join(process.cwd(), 'public', 'data', 'thai-locations.json');
   fs.writeFileSync(jsonPath, JSON.stringify(formattedData, null, 2), 'utf-8');
   console.log(`Saved structured JSON to: ${jsonPath}`);
 

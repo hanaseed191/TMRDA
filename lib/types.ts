@@ -1,12 +1,18 @@
+// =====================================================================
+// TMRDA domain types — mirror the Supabase tables (see supabase/migrations)
+// =====================================================================
+
+export type Role = 'user' | 'admin' | 'director' | 'evaluator';
+
 export interface User {
   id: number;
   th_human_number: string;
+  title_th?: string;
   first_name_th: string;
   last_name_th: string;
+  title_en?: string;
   first_name_en?: string;
   last_name_en?: string;
-  title_th?: string;
-  title_en?: string;
   gender_id?: number;
   sex_name?: string;
   nationality_name?: string;
@@ -14,44 +20,52 @@ export interface User {
   phone_number: string;
   email: string;
   house_number?: string;
-  house_group?: number;
+  house_group?: number | null;
   road_name?: string;
   alley_name?: string;
-  subdistrict_id?: number;
-  subdistrict_name?: string;
-  district_id?: number;
-  district_name?: string;
-  province_id?: number;
   province_name?: string;
-  heq_id?: number;
+  district_name?: string;
+  subdistrict_name?: string;
+  zip_code?: string;
   education_level?: string;
   branch_name?: string;
   physical_id?: number;
-  id_photo_file_pathname?: string;
-  identification_file_pathname?: string;
-  eq_file_pathname?: string;
+  disability_types?: string;
+  id_photo_file_pathname?: string | null;
+  identification_file_pathname?: string | null;
+  eq_file_pathname?: string | null;
   is_allowed?: number;
   is_admin?: number;
-  status_id?: number;
-  redirect_tag?: string;
+  role: Role;
+  position_title?: string;
   created_at?: string;
 }
+
+export type DocumentField = 'identification_file_pathname' | 'eq_file_pathname' | 'id_photo_file_pathname';
 
 export interface TrainingCourse {
   id: number;
   agency_name: string;
   course_name: string;
   course_name_en?: string;
-  traning_hours: number;
+  traning_hours: number; // (sic) column name in DB
   branch_name: string;
   level_name: string;
-  startswith_date: string;
-  endswith_date: string;
-  between_date: string;
+  startswith_date: string | null;
+  endswith_date: string | null;
+  between_date?: string;
   limit_course: number;
-  executive_name: string;
-  applied_count?: number;
+  executive_name?: string;
+  description?: string;
+  location?: string;
+  is_published?: boolean;
+  created_at?: string;
 }
+
+/** Enrollment review status, stored in Thai as in the original schema. */
+export type EnrollmentStatus = 'รอพิจารณา' | 'อนุมัติ' | 'ปฏิเสธ';
+export type ResultStatus = 'pending' | 'passed' | 'failed';
+export type ApprovalStatus = 'none' | 'submitted' | 'approved' | 'rejected';
 
 export interface TrainingApplication {
   id: number;
@@ -60,32 +74,32 @@ export interface TrainingApplication {
   training_type?: string;
   applicant_type?: string;
   is_skill_testing?: boolean;
-  is_accept?: number;
-  status: 'รอพิจารณา' | 'อนุมัติ' | 'ปฏิเสธ';
+  status: EnrollmentStatus;
+  reviewed_at?: string | null;
   created_at?: string;
-  theory_score?: number;
-  theory_max_score?: number;
-  theory_passed?: boolean;
-  exam_submitted_at?: string;
-  course?: TrainingCourse;
-  user?: User;
-}
-
-export interface ExamResultRecord {
-  id: number;
-  user_id: number;
-  training_id: number;
-  test_form_id: number;
-  score: number;
-  max_score: number;
-  passed: boolean;
-  submitted_at: string;
+  practical_round_id?: number | null;
+  // Official snapshot written when results are sent to the director
+  theory_score?: number | null;
+  theory_max?: number | null;
+  theory_passed?: boolean | null;
+  practical_score?: number | null;
+  practical_max?: number | null;
+  practical_passed?: boolean | null;
+  result_status: ResultStatus;
+  approval_status: ApprovalStatus;
+  submitted_at?: string | null;
+  approved_by?: number | null;
+  approved_by_name?: string | null;
+  approved_by_title?: string | null;
+  approved_at?: string | null;
+  approval_note?: string | null;
+  certificate_no?: string | null;
 }
 
 export interface LaborHistory {
   id?: number;
   user_id: number;
-  is_have_job: string; // 'ทำงาน' | 'ไม่ทำงานหรือว่างงาน'
+  is_have_job: string;
   labor_status: string;
   labor_salary: string;
   occupation: string;
@@ -105,6 +119,26 @@ export interface LaborHistory {
   accept_job_in_country_name?: string;
 }
 
+// ---------------------------------------------------------------------
+// Theory exam
+// ---------------------------------------------------------------------
+
+/**
+ * - single_choices   ตัวเลือกเดียว
+ * - multiple_choices หลายคำตอบ (all-or-nothing, or partial when `partial_credit`)
+ * - true_false       ถูก / ผิด
+ * - matching         จับคู่ (score is proportional to correct pairs)
+ * - short_answer     เติมคำตอบสั้น (auto-graded against `accepted_answers`)
+ * - text_choices     ข้อเขียน / อัตนัย (graded manually by staff)
+ */
+export type QuestionType =
+  | 'single_choices'
+  | 'multiple_choices'
+  | 'true_false'
+  | 'matching'
+  | 'short_answer'
+  | 'text_choices';
+
 export interface ExamChoice {
   id: string;
   choice_text: string;
@@ -117,34 +151,45 @@ export interface MatchingPair {
   right_text: string;
 }
 
-export type QuestionType = 'single_choices' | 'multiple_choices' | 'text_choices' | 'true_false' | 'matching';
-
 export interface ExamQuestion {
   id: number;
   question_text: string;
-  type: QuestionType; // 'single_choices' | 'multiple_choices' | 'text_choices' | 'true_false' | 'matching'
-  category: 'knowledge' | 'practice'; // ภาคความรู้ หรือ ภาคความสามารถ
+  type: QuestionType;
+  category?: 'knowledge' | 'practice';
   score: number;
   choices: ExamChoice[];
-  matching_pairs?: MatchingPair[]; // สำหรับข้อสอบจับคู่
-  true_false_answer?: boolean; // สำหรับข้อสอบถูก/ผิด (true = ถูก, false = ผิด)
+  matching_pairs?: MatchingPair[];
+  true_false_answer?: boolean;
+  accepted_answers?: string[];
   placeholder_text?: string;
   correct_answer_text?: string;
+  explanation?: string;
+  partial_credit?: boolean;
 }
+
+/** Answers keyed by question id. Matching answers map left pair id -> chosen pair id (right side). */
+export type AnswerValue = string | string[] | boolean | Record<string, string>;
+export type AnswerMap = Record<string, AnswerValue>;
+
+// ---------------------------------------------------------------------
+// Practical exam
+// ---------------------------------------------------------------------
 
 export interface PracticalItem {
   id: number;
-  item_name: string; // ชื่อหัวข้อเกณฑ์ประเมินปฏิบัติ
+  item_name: string;
   description?: string;
   max_score: number;
-  criteria?: string; // เกณฑ์การพิจารณาให้คะแนน
-  children?: PracticalItem[]; // ข้อย่อยซ้อนลงไป 3-4 ชั้น
+  criteria?: string;
+  children?: PracticalItem[];
 }
+
+export type ExamType = 'theory' | 'practical';
 
 export interface TestForm {
   id: number;
   training_id: number;
-  exam_type?: 'theory' | 'practical'; // แยกข้อสอบทฤษฎี vs ประเมินปฏิบัติ
+  exam_type: ExamType;
   title: string;
   description: string;
   time_limit_minutes: number;
@@ -153,23 +198,65 @@ export interface TestForm {
   score_knowledge_max: number;
   score_practice_max: number;
   is_active: boolean;
-  exam_start_date?: string; // วันที่เริ่มเปิดสอบ (เช่น YYYY-MM-DDTHH:mm)
-  exam_end_date?: string; // วันที่ปิดการสอบ
+  exam_start_date?: string | null;
+  exam_end_date?: string | null;
+  max_attempts: number;
+  show_answers: boolean;
   randomize_questions?: boolean;
   randomize_choices?: boolean;
-  questions?: ExamQuestion[];
-  practical_items?: PracticalItem[];
+  questions: ExamQuestion[];
+  practical_items: PracticalItem[];
+  created_at?: string;
 }
 
-export interface TestFormHistory {
+export type AttemptStatus = 'in_progress' | 'submitted' | 'graded';
+
+export interface ExamAttempt {
   id: number;
   user_id: number;
+  training_id: number;
+  test_form_id: number | null;
+  application_id: number | null;
+  question_snapshot: ExamQuestion[];
+  answers: AnswerMap;
+  manual_scores: Record<string, number>;
+  auto_score: number;
+  score: number;
+  max_score: number;
+  percent: number;
+  passing_percentage: number;
+  passed: boolean | null;
+  needs_review: boolean;
+  status: AttemptStatus;
+  started_at: string;
+  deadline_at: string | null;
+  submitted_at: string | null;
+  graded_by?: number | null;
+  graded_at?: string | null;
+}
+
+export interface PracticalRound {
+  id: number;
+  training_id: number;
   test_form_id: number;
-  score_knowledge: number;
-  score_practice: number;
-  total_score: number;
-  result_status: 'ผ่านการประเมิน' | 'ไม่ผ่านการประเมิน' | 'รอประเมิน';
-  pratice_history_path?: string;
+  name: string;
+  exam_date: string | null;
+  start_time?: string;
+  location?: string;
+  evaluator_ids: number[];
+  status: 'open' | 'closed';
   created_at?: string;
-  user?: User;
+}
+
+export interface PracticalScore {
+  id: number;
+  round_id: number;
+  application_id: number;
+  evaluator_id: number;
+  item_scores: Record<string, number>;
+  total: number;
+  max_total: number;
+  comment: string;
+  status: 'draft' | 'submitted';
+  updated_at: string;
 }
