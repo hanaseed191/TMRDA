@@ -1,0 +1,34 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # รันอัตโนมัติทุกๆ 2 วัน เวลา 04:00 น. UTC (11:00 น. เวลาไทย)
+    - cron: '0 4 */2 * *'
+  workflow_dispatch: # อนุญาตให้กดรันด้วยตัวเอง (Manual trigger) ผ่าน GitHub UI ได้
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API directly
+        run: |
+          SUPABASE_URL="${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://iccvbxlfntrkqzdhgzqn.supabase.co' }}"
+          SUPABASE_KEY="${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+
+          echo "Pinging Supabase Database at $SUPABASE_URL..."
+          
+          # Query ข้อมูลตาราง gender_list ผ่าน Supabase REST API
+          HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            "$SUPABASE_URL/rest/v1/gender_list?select=id&limit=1")
+          
+          echo "HTTP Response Status: $HTTP_STATUS"
+          cat response.json
+          echo ""
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo " Supabase is active and refreshed successfully!"
+          else
+            echo "⚠️ Request returned status $HTTP_STATUS"
+          fi
