@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { BadgeCheck, CircleCheck, CircleX, PartyPopper, Stamp, Undo2 } from 'lucide-react';
+import { BadgeCheck, CircleCheck, CircleX, FileText, PartyPopper, Stamp, Undo2 } from 'lucide-react';
 import { applications, courses, users } from '@/lib/api';
 import { useUser } from '@/lib/auth';
 import { useLoad } from '@/lib/hooks';
@@ -192,9 +192,12 @@ export default function ApprovalsPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <Badge tone="green">ผ่าน {apps.filter((a) => a.result_status === 'passed').length}</Badge>
                     <Badge tone="red">ไม่ผ่าน {apps.filter((a) => a.result_status === 'failed').length}</Badge>
+                    <ButtonLink href={`/print/approval-report/${course?.id ?? apps[0].training_id}`} variant="outline" size="sm" icon={<FileText className="h-3.5 w-3.5" />}>
+                      บัญชีเสนออนุมัติ
+                    </ButtonLink>
                   </div>
                 </div>
                 <Table>

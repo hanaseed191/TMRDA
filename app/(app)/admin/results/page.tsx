@@ -4,7 +4,7 @@ import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { BadgeCheck, Clock, Download, FileStack, Hourglass, RotateCcw, Send, CircleCheck, CircleX, Users } from 'lucide-react';
+import { BadgeCheck, Clock, Download, FileStack, FileText, Hourglass, RotateCcw, Send, CircleCheck, CircleX, Users } from 'lucide-react';
 import { applications, courses as coursesApi } from '@/lib/api';
 import { buildCourseResults, canSubmit, snapshotOf, type CandidateResult } from '@/lib/results';
 import { useLoad } from '@/lib/hooks';
@@ -157,9 +157,14 @@ function ResultsPageInner() {
         actions={
           <>
             {data && rows.length > 0 && (
-              <Button variant="outline" icon={<Download className="h-4 w-4" />} onClick={() => resultsCsv(data.course.course_name, visible)}>
-                ส่งออก CSV
-              </Button>
+              <>
+                <ButtonLink href={`/print/approval-report/${data.course.id}`} variant="outline" icon={<FileText className="h-4 w-4" />}>
+                  บัญชีเสนออนุมัติ (PDF/Excel)
+                </ButtonLink>
+                <Button variant="outline" icon={<Download className="h-4 w-4" />} onClick={() => resultsCsv(data.course.course_name, visible)}>
+                  ส่งออก CSV
+                </Button>
+              </>
             )}
           </>
         }

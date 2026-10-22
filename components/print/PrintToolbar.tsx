@@ -5,7 +5,18 @@ import { ArrowLeft, Printer } from 'lucide-react';
 import { Button } from '@/components/ui';
 import { Brand } from '@/components/Brand';
 
-export default function PrintToolbar({ title, hint, disabled }: { title: string; hint?: string; disabled?: boolean }) {
+export default function PrintToolbar({
+  title,
+  hint,
+  disabled,
+  actions,
+}: {
+  title: string;
+  hint?: string;
+  disabled?: boolean;
+  /** extra buttons shown before the print button (e.g. Excel export) */
+  actions?: React.ReactNode;
+}) {
   const router = useRouter();
   return (
     <div className="no-print sticky top-0 z-20 border-b border-zinc-200 bg-surface/85 backdrop-blur-xl">
@@ -25,6 +36,7 @@ export default function PrintToolbar({ title, hint, disabled }: { title: string;
           <div className="truncate text-sm font-semibold text-zinc-900">{title}</div>
           {hint && <div className="truncate text-xs text-zinc-500">{hint}</div>}
         </div>
+        {actions}
         <Button icon={<Printer className="h-4 w-4" />} onClick={() => window.print()} disabled={disabled}>
           พิมพ์ / บันทึก PDF
         </Button>

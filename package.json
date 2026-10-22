@@ -9,7 +9,8 @@
     "lint": "next lint",
     "keepalive": "node scripts/keepAlive.mjs",
     "test": "node --test tests/scoring.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "npx -y tsx tests/e2e/full-flow.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.6",
