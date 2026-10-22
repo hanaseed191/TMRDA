@@ -1,20 +1,83 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Award, CalendarDays, ChevronRight, ClipboardCheck, FileText, Hourglass, MapPin, MessageSquare, Printer } from 'lucide-react';
 import { useUser } from '@/lib/auth';
 import { cn } from '@/lib/cn';
 import { num, thaiDate, thaiDateTime } from '@/lib/format';
 import type { ExamAttempt, TrainingApplication } from '@/lib/types';
-import { Badge, ButtonLink, Callout, Card, EmptyState, PageHeader, ScoreRing, Skeleton } from '@/components/ui';
+import { Badge, ButtonLink, Callout, Card, EmptyState, PageHeader, ScoreRing, SearchInput, Segmented, Skeleton } from '@/components/ui';
 import { ApprovalBadge, PassFail, ResultBadge } from '@/components/status';
 import { bestAttempt, useStudentData, type StudentData } from '@/components/student/data';
+import { ExpandableCard, useExpanded, useShowMore } from '@/components/student/Expandable';
+
+type Filter = 'all' | 'certificate' | 'pending' | 'failed';
+
+/** Everything the results page shows for one application, derived once. */
+function summarize(app: TrainingApplication, data: StudentData) {
+  const course = data.courseById.get(app.training_id);
+  const tries = data.myAttempts.filter((a) => a.training_id === app.training_id);
+  const finished = tries.filter((a) => a.status !== 'in_progress');
+  const best = bestAttempt(finished);
+  const hasTheory = data.theoryForms.some((f) => f.training_id === app.training_id) || tries.length > 0;
+  const hasPractical = data.practicalForms.some((f) => f.training_id === app.training_id);
+  const round = app.practical_round_id ? data.myRounds.get(app.practical_round_id) : undefined;
+  const official = app.approval_status === 'submitted' || app.approval_status === 'approved';
+
+  // Theory: the official snapshot once results went to the director; otherwise the best attempt
+  const theoryScore = official && app.theory_score != null ? Number(app.theory_score) : best && !best.needs_review ? Number(best.score) : null;
+  const theoryMax = official && app.theory_max != null ? Number(app.theory_max) : best ? Number(best.max_score) : 0;
+  const theoryPassed = official && app.theory_passed != null ? app.theory_passed : best && !best.needs_review ? best.passed : null;
+  const practicalScore = official && app.practical_score != null ? Number(app.practical_score) : null;
+  const practicalMax = Number(app.practical_max) || 0;
+
+  const kind: Exclude<Filter, 'all'> =
+    app.approval_status === 'approved' && app.certificate_no
+      ? 'certificate'
+      : official && app.result_status === 'failed'
+        ? 'failed'
+        : 'pending';
+
+  return { course, tries, finished, best, hasTheory, hasPractical, round, official, theoryScore, theoryMax, theoryPassed, practicalScore, practicalMax, kind };
+}
+
+type Summary = ReturnType<typeof summarize>;
 
 export default function ResultsPage() {
   const user = useUser();
   const { data, loading, error, reload } = useStudentData(user);
-  const apps = data?.myApps.filter((a) => a.status !== 'ปฏิเสธ') || [];
-  const certificates = apps.filter((a) => a.approval_status === 'approved' && a.certificate_no);
+  const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
+
+  const rows = useMemo(() => {
+    if (!data) return [];
+    return data.myApps
+      .filter((a) => a.status !== 'ปฏิเสธ')
+      .map((app) => ({ app, s: summarize(app, data) }))
+      .sort((a, b) => +new Date(b.app.created_at || 0) - +new Date(a.app.created_at || 0));
+  }, [data]);
+
+  const counts = useMemo(
+    () => ({
+      all: rows.length,
+      certificate: rows.filter((r) => r.s.kind === 'certificate').length,
+      pending: rows.filter((r) => r.s.kind === 'pending').length,
+      failed: rows.filter((r) => r.s.kind === 'failed').length,
+    }),
+    [rows]
+  );
+
+  const filtered = rows.filter((r) => {
+    if (filter !== 'all' && r.s.kind !== filter) return false;
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return [r.s.course?.course_name, r.s.course?.branch_name, r.app.certificate_no].some((v) => v?.toLowerCase().includes(q));
+  });
+
+  const { visible, footer } = useShowMore(filtered, 10);
+  // Only one course? open it straight away.
+  const expanded = useExpanded(rows.length === 1 ? [rows[0].app.id] : []);
 
   return (
     <div>
@@ -26,44 +89,20 @@ export default function ResultsPage() {
         </Callout>
       )}
 
-      {!loading && certificates.length > 0 && (
-        <div className="mb-6 grid gap-3 sm:grid-cols-2">
-          {certificates.map((a) => (
-            <Link
-              key={a.id}
-              href={`/print/certificate/${a.id}`}
-              className="group relative flex items-center gap-4 overflow-hidden rounded-2xl bg-ink-950 dark:bg-ink-900 dark:ring-1 dark:ring-white/10 p-5 text-white transition hover:-translate-y-0.5 hover:shadow-lift"
-            >
-              <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-brand-600/40 blur-2xl" />
-              <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 to-amber-500 text-ink-950">
-                <Award className="h-6 w-6" />
-              </span>
-              <div className="relative min-w-0 flex-1">
-                <div className="text-[0.75rem] text-ink-400">ใบประกาศนียบัตร · {a.certificate_no}</div>
-                <div className="truncate font-medium">{data?.courseById.get(a.training_id)?.course_name}</div>
-              </div>
-              <span className="relative inline-flex items-center gap-1 text-sm text-ink-300 group-hover:text-white">
-                <Printer className="h-4 w-4" />
-                พิมพ์
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
-
       {loading || !data ? (
-        <div className="space-y-4">
-          {[0, 1].map((i) => (
-            <Card key={i} className="space-y-4 p-6">
-              <Skeleton className="h-5 w-1/2" />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Skeleton className="h-28" />
-                <Skeleton className="h-28" />
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Card key={i} className="flex items-center gap-4 p-5">
+              <Skeleton className="h-7 w-7" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-1/3" />
+                <Skeleton className="h-3 w-1/4" />
               </div>
+              <Skeleton className="h-7 w-24" />
             </Card>
           ))}
         </div>
-      ) : apps.length === 0 ? (
+      ) : rows.length === 0 ? (
         <Card>
           <EmptyState
             icon={<Award className="h-5 w-5" />}
@@ -73,65 +112,113 @@ export default function ResultsPage() {
           />
         </Card>
       ) : (
-        <div className="space-y-4">
-          {apps.map((a) => (
-            <ResultCard key={a.id} app={a} data={data} />
-          ))}
-        </div>
+        <>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Segmented<Filter>
+              value={filter}
+              onChange={setFilter}
+              size="sm"
+              options={[
+                { value: 'all', label: `ทั้งหมด ${counts.all}` },
+                { value: 'certificate', label: `มีใบประกาศ ${counts.certificate}`, icon: <Award className="h-3.5 w-3.5" /> },
+                { value: 'pending', label: `รอผล ${counts.pending}` },
+                { value: 'failed', label: `ไม่ผ่าน ${counts.failed}` },
+              ]}
+            />
+            {rows.length > 3 && <SearchInput value={query} onChange={setQuery} placeholder="ค้นหาหลักสูตร หรือเลขที่ใบประกาศ…" className="w-full sm:w-72" />}
+          </div>
+
+          {filtered.length === 0 ? (
+            <Card>
+              <EmptyState compact title="ไม่พบรายการ" description="ลองเปลี่ยนตัวกรองหรือคำค้นหา" />
+            </Card>
+          ) : (
+            <div className="space-y-2.5">
+              {visible.map(({ app, s }) => (
+                <ExpandableCard
+                  key={app.id}
+                  open={expanded.isOpen(app.id)}
+                  onToggle={() => expanded.toggle(app.id)}
+                  summary={<ResultSummary app={app} s={s} />}
+                  actions={
+                    app.approval_status === 'approved' && app.certificate_no ? (
+                      <ButtonLink href={`/print/certificate/${app.id}`} size="sm" icon={<Printer className="h-3.5 w-3.5" />}>
+                        พิมพ์ใบประกาศ
+                      </ButtonLink>
+                    ) : undefined
+                  }
+                >
+                  <ResultDetail app={app} s={s} data={data} />
+                </ExpandableCard>
+              ))}
+              {footer}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-function ResultCard({ app, data }: { app: TrainingApplication; data: StudentData }) {
-  const course = data.courseById.get(app.training_id);
-  const tries = data.myAttempts.filter((a) => a.training_id === app.training_id);
-  const finished = tries.filter((a) => a.status !== 'in_progress');
-  const best = bestAttempt(finished);
-  const hasTheory = data.theoryForms.some((f) => f.training_id === app.training_id) || tries.length > 0;
-  const hasPractical = data.practicalForms.some((f) => f.training_id === app.training_id);
-  const round = app.practical_round_id ? data.myRounds.get(app.practical_round_id) : undefined;
-  const official = app.approval_status === 'submitted' || app.approval_status === 'approved';
-  const formTitle = (a: ExamAttempt) => data.theoryForms.find((f) => f.id === a.test_form_id)?.title || 'แบบทดสอบ';
+function ScoreChip({ label, score, max, passed }: { label: string; score: number | null; max: number; passed: boolean | null | undefined }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[0.8125rem] text-zinc-500">
+      {label}
+      <span
+        className={cn(
+          'font-medium tabular',
+          score === null ? 'text-zinc-400' : passed === true ? 'text-emerald-700' : passed === false ? 'text-brand-700' : 'text-zinc-800'
+        )}
+      >
+        {score === null ? 'รอผล' : `${num(score)}/${num(max)}`}
+      </span>
+    </span>
+  );
+}
 
-  // Theory: official snapshot when results were sent to the director; otherwise the best attempt
-  const theoryScore = official && app.theory_score != null ? Number(app.theory_score) : best && !best.needs_review ? Number(best.score) : null;
-  const theoryMax = official && app.theory_max != null ? Number(app.theory_max) : best ? Number(best.max_score) : 0;
-  const theoryPassed = official && app.theory_passed != null ? app.theory_passed : best && !best.needs_review ? best.passed : null;
+function ResultSummary({ app, s }: { app: TrainingApplication; s: Summary }) {
+  return (
+    <span className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <span className="min-w-0">
+        <span className="block truncate font-medium text-zinc-950">{s.course?.course_name || `หลักสูตร #${app.training_id}`}</span>
+        <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          {s.hasTheory && <ScoreChip label="ทฤษฎี" score={s.theoryScore} max={s.theoryMax} passed={s.theoryPassed} />}
+          {s.hasPractical && <ScoreChip label="ปฏิบัติ" score={s.practicalScore} max={s.practicalMax} passed={s.official ? app.practical_passed : null} />}
+          {app.certificate_no && <span className="text-[0.75rem] tabular text-zinc-400">{app.certificate_no}</span>}
+        </span>
+      </span>
+      <span className="flex shrink-0 flex-wrap items-center gap-1.5">
+        <ResultBadge status={s.official ? app.result_status : 'pending'} />
+        {app.approval_status !== 'none' && <ApprovalBadge status={app.approval_status} />}
+      </span>
+    </span>
+  );
+}
+
+function ResultDetail({ app, s, data }: { app: TrainingApplication; s: Summary; data: StudentData }) {
+  const formTitle = (a: ExamAttempt) => data.theoryForms.find((f) => f.id === a.test_form_id)?.title || 'แบบทดสอบ';
+  const { best, finished, tries, round, official } = s;
 
   return (
-    <Card className="animate-fade-up overflow-hidden">
-      <div className="flex flex-col gap-3 border-b border-zinc-100 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold sm:text-lg">{course?.course_name || `หลักสูตร #${app.training_id}`}</h2>
-          <p className="mt-0.5 text-[0.8125rem] text-zinc-500">
-            {course?.level_name} {course?.branch_name && `· ${course.branch_name}`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <ResultBadge status={official ? app.result_status : 'pending'} />
-          <ApprovalBadge status={app.approval_status} />
-        </div>
-      </div>
-
+    <>
       <div className="grid gap-px bg-zinc-100 md:grid-cols-2">
         {/* Theory */}
         <div className="bg-surface p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <span className="eyebrow">ภาคทฤษฎี</span>
-            {hasTheory && <PassFail passed={theoryPassed} />}
+            {s.hasTheory && <PassFail passed={s.theoryPassed} />}
           </div>
-          {!hasTheory ? (
+          {!s.hasTheory ? (
             <p className="text-sm text-zinc-500">หลักสูตรนี้ไม่มีสอบภาคทฤษฎี</p>
           ) : finished.length === 0 && !official ? (
             <p className="text-sm text-zinc-500">{tries.length ? 'กำลังทำข้อสอบอยู่' : 'ยังไม่ได้เข้าสอบ'}</p>
           ) : (
             <div className="flex items-center gap-5">
-              <ScoreRing value={theoryScore} max={theoryMax} passed={theoryPassed} size={84} stroke={7} />
+              <ScoreRing value={s.theoryScore} max={s.theoryMax} passed={s.theoryPassed} size={84} stroke={7} />
               <div className="min-w-0 text-sm">
                 <div className="font-display text-xl font-semibold tabular">
-                  {theoryScore === null ? '—' : num(theoryScore)}
-                  <span className="text-sm font-normal text-zinc-400"> / {num(theoryMax)} คะแนน</span>
+                  {s.theoryScore === null ? '—' : num(s.theoryScore)}
+                  <span className="text-sm font-normal text-zinc-400"> / {num(s.theoryMax)} คะแนน</span>
                 </div>
                 {best?.needs_review && !official ? (
                   <div className="mt-1 inline-flex items-center gap-1.5 text-[0.8125rem] text-amber-700">
@@ -148,7 +235,7 @@ function ResultCard({ app, data }: { app: TrainingApplication; data: StudentData
           )}
 
           {finished.length > 0 && (
-            <ul className="mt-5 divide-y divide-zinc-100 rounded-xl border border-zinc-200">
+            <ul className="mt-5 max-h-60 divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200">
               {finished.map((a) => (
                 <li key={a.id}>
                   <Link href={`/exam/${a.id}`} className="flex items-center gap-3 px-3.5 py-2.5 text-sm transition hover:bg-zinc-50">
@@ -172,17 +259,17 @@ function ResultCard({ app, data }: { app: TrainingApplication; data: StudentData
         <div className="bg-surface p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <span className="eyebrow">ภาคปฏิบัติ</span>
-            {hasPractical && <PassFail passed={official ? app.practical_passed : null} />}
+            {s.hasPractical && <PassFail passed={official ? app.practical_passed : null} />}
           </div>
-          {!hasPractical ? (
+          {!s.hasPractical ? (
             <p className="text-sm text-zinc-500">หลักสูตรนี้ไม่มีการประเมินภาคปฏิบัติ</p>
-          ) : official && app.practical_score != null ? (
+          ) : s.practicalScore !== null ? (
             <div className="flex items-center gap-5">
-              <ScoreRing value={Number(app.practical_score)} max={Number(app.practical_max) || 0} passed={app.practical_passed} size={84} stroke={7} />
+              <ScoreRing value={s.practicalScore} max={s.practicalMax} passed={app.practical_passed} size={84} stroke={7} />
               <div className="text-sm">
                 <div className="font-display text-xl font-semibold tabular">
-                  {num(app.practical_score)}
-                  <span className="text-sm font-normal text-zinc-400"> / {num(app.practical_max)} คะแนน</span>
+                  {num(s.practicalScore)}
+                  <span className="text-sm font-normal text-zinc-400"> / {num(s.practicalMax)} คะแนน</span>
                 </div>
                 <div className="mt-1 inline-flex items-center gap-1.5 text-[0.8125rem] text-zinc-500">
                   <ClipboardCheck className="h-3.5 w-3.5" />
@@ -221,8 +308,8 @@ function ResultCard({ app, data }: { app: TrainingApplication; data: StudentData
       </div>
 
       {(app.approval_status === 'rejected' && app.approval_note) || app.approval_status === 'approved' || app.approval_status === 'submitted' ? (
-        <div className="flex flex-col gap-3 border-t border-zinc-100 bg-zinc-50/60 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div className="min-w-0 text-sm">
+        <div className="flex flex-col gap-3 border-t border-zinc-100 bg-zinc-50/60 p-5 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="min-w-0">
             {app.approval_status === 'submitted' && <span className="text-zinc-600">ส่งผลให้ผู้อำนวยการพิจารณาเมื่อ {thaiDate(app.submitted_at)}</span>}
             {app.approval_status === 'approved' && (
               <span className="text-zinc-600">
@@ -237,16 +324,9 @@ function ResultCard({ app, data }: { app: TrainingApplication; data: StudentData
               </span>
             )}
           </div>
-          {app.approval_status === 'approved' && app.certificate_no && (
-            <div className="flex shrink-0 items-center gap-2">
-              <Badge tone="dark">{app.certificate_no}</Badge>
-              <ButtonLink href={`/print/certificate/${app.id}`} size="sm" icon={<Printer className="h-3.5 w-3.5" />}>
-                พิมพ์ใบประกาศ
-              </ButtonLink>
-            </div>
-          )}
+          {app.certificate_no && <Badge tone="dark">{app.certificate_no}</Badge>}
         </div>
       ) : null}
-    </Card>
+    </>
   );
 }

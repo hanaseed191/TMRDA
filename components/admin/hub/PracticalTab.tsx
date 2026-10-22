@@ -143,7 +143,7 @@ export default function PracticalTab({ data, reload }: { data: HubData; reload: 
           <div>
             <h2 className="text-base font-semibold">รอบสอบและผู้ประเมิน</h2>
             <p className="text-[0.8125rem] text-zinc-500">
-              แต่ละรอบมีผู้ประเมิน {REQUIRED_EVALUATORS} ท่าน — คะแนนปฏิบัติ = ผลรวมคะแนนจากผู้ประเมิน ÷ จำนวนผู้ประเมิน
+              แต่ละรอบมีผู้ประเมิน {REQUIRED_EVALUATORS} ท่าน — คะแนนปฏิบัติ = ผลรวมคะแนนจากผู้ประเมิน ÷ จำนวนผู้ประเมิน · ผู้ที่สอบทฤษฎีผ่านจะถูกจัดเข้ารอบที่เปิดอยู่ (รอบที่ใกล้ที่สุด) ให้อัตโนมัติ
             </p>
           </div>
           <Button

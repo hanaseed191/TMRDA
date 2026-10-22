@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -42,6 +42,7 @@ import {
   PageHeader,
   Progress,
   SearchInput,
+  Segmented,
   Skeleton,
   Switch,
   Tabs,
@@ -49,8 +50,24 @@ import {
 } from '@/components/ui';
 import { ApprovalBadge, EnrollmentBadge } from '@/components/status';
 import { assignedTheoryForms, formStatus, missingDocuments, useStudentData, type FormStatus, type StudentData } from '@/components/student/data';
+import { ExpandableCard, useExpanded, useShowMore } from '@/components/student/Expandable';
 
 type Tab = 'mine' | 'open';
+type MineFilter = 'active' | 'done' | 'all';
+
+/** Finished = decided by the director, or the application was declined. */
+function isFinished(app: TrainingApplication) {
+  return app.status === 'ปฏิเสธ' || app.approval_status === 'approved';
+}
+
+/** The theory exam action a candidate can take right now, if any. */
+function nextExam(app: TrainingApplication, data: StudentData) {
+  for (const f of assignedTheoryForms(app, data)) {
+    const st = formStatus(f, app, data.myAttempts);
+    if (st.state === 'in_progress' || st.state === 'open') return { form: f, st };
+  }
+  return null;
+}
 
 function courseMatches(c: TrainingCourse, q: string) {
   if (!q.trim()) return true;
@@ -81,6 +98,31 @@ function CoursesInner() {
     () => (data ? data.courses.filter((c) => c.is_published !== false && !myIds.has(c.id) && !courseEnded(c) && courseMatches(c, query)) : []),
     [data, myIds, query]
   );
+
+  const [mineFilter, setMineFilter] = useState<MineFilter | null>(null);
+  const activeCount = useMemo(() => mine.filter((a) => !isFinished(a)).length, [mine]);
+  const doneCount = mine.length - activeCount;
+  // Default to "in progress" when there is something in progress, otherwise show everything.
+  const effectiveFilter: MineFilter = mineFilter ?? (activeCount > 0 ? 'active' : 'all');
+  const mineShown = useMemo(
+    () =>
+      mine
+        .filter((a) => (effectiveFilter === 'all' ? true : effectiveFilter === 'done' ? isFinished(a) : !isFinished(a)))
+        .sort((a, b) => Number(!!data && !!nextExam(b, data)) - Number(!!data && !!nextExam(a, data)) || +new Date(b.created_at || 0) - +new Date(a.created_at || 0)),
+    [mine, effectiveFilter, data]
+  );
+  const { visible: mineVisible, footer: mineFooter } = useShowMore(mineShown, 10);
+  const { visible: openVisible, footer: openFooter } = useShowMore(open, 12);
+  const expanded = useExpanded();
+  const autoExpanded = useRef(false);
+  useEffect(() => {
+    // First load: open a single course, or the first one with an exam waiting; leave the rest collapsed.
+    if (!data || autoExpanded.current) return;
+    autoExpanded.current = true;
+    const target = data.myApps.length === 1 ? data.myApps[0] : data.myApps.find((a) => nextExam(a, data));
+    if (target) expanded.setAll([target.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const defaultTab: Tab = data && data.myApps.length === 0 ? 'open' : 'mine';
   const requested = params.get('tab');
@@ -133,11 +175,41 @@ function CoursesInner() {
             />
           </Card>
         ) : (
-          <div className="space-y-4">
-            {mine.map((app) => (
-              <MyCourseCard key={app.id} app={app} data={data} onStart={(form) => setStartForm({ form, app, course: data.courseById.get(app.training_id) })} onChanged={reload} />
-            ))}
-          </div>
+          <>
+            {mine.length > 1 && (
+              <Segmented<MineFilter>
+                className="mb-4"
+                size="sm"
+                value={effectiveFilter}
+                onChange={setMineFilter}
+                options={[
+                  { value: 'active', label: `กำลังดำเนินการ ${activeCount}` },
+                  { value: 'done', label: `เสร็จสิ้น ${doneCount}` },
+                  { value: 'all', label: `ทั้งหมด ${mine.length}` },
+                ]}
+              />
+            )}
+            {mineShown.length === 0 ? (
+              <Card>
+                <EmptyState compact title="ไม่มีรายการในหมวดนี้" description="ลองเลือกตัวกรองอื่น" />
+              </Card>
+            ) : (
+              <div className="space-y-2.5">
+                {mineVisible.map((app) => (
+                  <MyCourseCard
+                    key={app.id}
+                    app={app}
+                    data={data}
+                    open={expanded.isOpen(app.id)}
+                    onToggle={() => expanded.toggle(app.id)}
+                    onStart={(form) => setStartForm({ form, app, course: data.courseById.get(app.training_id) })}
+                    onChanged={reload}
+                  />
+                ))}
+                {mineFooter}
+              </div>
+            )}
+          </>
         )
       ) : open.length === 0 ? (
         <Card>
@@ -148,11 +220,14 @@ function CoursesInner() {
           />
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {open.map((c, i) => (
-            <OpenCourseCard key={c.id} course={c} used={data.seatsUsed.get(c.id) || 0} index={i} onApply={() => setApplyTo(c)} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {openVisible.map((c, i) => (
+              <OpenCourseCard key={c.id} course={c} used={data.seatsUsed.get(c.id) || 0} index={i % 12} onApply={() => setApplyTo(c)} />
+            ))}
+          </div>
+          {openFooter && <div className="mt-4">{openFooter}</div>}
+        </>
       )}
 
       <ApplyDialog
@@ -236,11 +311,15 @@ const STATE_UI: Record<FormStatus['state'], { label: string; tone: 'green' | 'am
 function MyCourseCard({
   app,
   data,
+  open,
+  onToggle,
   onStart,
   onChanged,
 }: {
   app: TrainingApplication;
   data: StudentData;
+  open: boolean;
+  onToggle: () => void;
   onStart: (f: TestForm) => void;
   onChanged: () => void;
 }) {
@@ -275,23 +354,56 @@ function MyCourseCard({
     }
   };
 
+  const next = nextExam(app, data);
+
   return (
-    <Card className="animate-fade-up overflow-hidden">
-      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
+    <ExpandableCard
+      open={open}
+      onToggle={onToggle}
+      summary={
+        <span className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <span className="min-w-0">
+            <span className="block truncate font-medium text-zinc-950">{course?.course_name || `หลักสูตร #${app.training_id}`}</span>
+            <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+              {course && <Meta icon={<CalendarDays className="h-3.5 w-3.5" />}>{thaiDateRange(course.startswith_date, course.endswith_date)}</Meta>}
+              {round && (
+                <Meta icon={<ListChecks className="h-3.5 w-3.5" />}>
+                  ปฏิบัติ {round.exam_date ? thaiDate(round.exam_date) : 'รอกำหนดวัน'}
+                </Meta>
+              )}
+            </span>
+          </span>
+          <span className="flex shrink-0 flex-wrap items-center gap-1.5">
             <EnrollmentBadge status={app.status} />
             {app.approval_status !== 'none' && <ApprovalBadge status={app.approval_status} />}
-          </div>
-          <h3 className="mt-2.5 text-lg font-semibold leading-snug">{course?.course_name || `หลักสูตร #${app.training_id}`}</h3>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-            {course && <Meta icon={<CalendarDays className="h-3.5 w-3.5" />}>{thaiDateRange(course.startswith_date, course.endswith_date)}</Meta>}
-            {course && <Meta icon={<Clock className="h-3.5 w-3.5" />}>{num(course.traning_hours)} ชม.</Meta>}
-            {course?.location && <Meta icon={<MapPin className="h-3.5 w-3.5" />}>{course.location}</Meta>}
-            <Meta icon={<FileText className="h-3.5 w-3.5" />}>สมัครเมื่อ {thaiDate(app.created_at)}</Meta>
-          </div>
+          </span>
+        </span>
+      }
+      actions={
+        next ? (
+          next.st.state === 'in_progress' && next.st.inProgress ? (
+            <Button size="sm" onClick={() => router.push(`/exam/${next.st.inProgress!.id}`)} icon={<RotateCcw className="h-3.5 w-3.5" />}>
+              ทำข้อสอบต่อ
+            </Button>
+          ) : (
+            <Button size="sm" onClick={() => onStart(next.form)} icon={<CirclePlay className="h-3.5 w-3.5" />}>
+              {next.st.used > 0 ? 'สอบอีกครั้ง' : 'เริ่มทำข้อสอบ'}
+            </Button>
+          )
+        ) : app.approval_status === 'approved' && app.certificate_no ? (
+          <ButtonLink href={`/print/certificate/${app.id}`} size="sm" variant="outline" icon={<Printer className="h-3.5 w-3.5" />}>
+            ใบประกาศ
+          </ButtonLink>
+        ) : undefined
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 px-5 py-3 sm:px-6">
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {course && <Meta icon={<Clock className="h-3.5 w-3.5" />}>{num(course.traning_hours)} ชม.</Meta>}
+          {course?.location && <Meta icon={<MapPin className="h-3.5 w-3.5" />}>{course.location}</Meta>}
+          <Meta icon={<FileText className="h-3.5 w-3.5" />}>สมัครเมื่อ {thaiDate(app.created_at)}</Meta>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <ButtonLink href={`/print/application?course=${app.training_id}`} variant="outline" size="sm" icon={<Printer className="h-3.5 w-3.5" />}>
             พิมพ์ใบสมัคร
           </ButtonLink>
@@ -304,9 +416,9 @@ function MyCourseCard({
       </div>
 
       {app.status === 'ปฏิเสธ' ? (
-        <div className="border-t border-zinc-100 px-5 py-4 text-sm text-zinc-500 sm:px-6">ใบสมัครนี้ไม่ผ่านการคัดเลือก หากมีข้อสงสัยกรุณาติดต่อเจ้าหน้าที่</div>
+        <div className="px-5 py-4 text-sm text-zinc-500 sm:px-6">ใบสมัครนี้ไม่ผ่านการคัดเลือก หากมีข้อสงสัยกรุณาติดต่อเจ้าหน้าที่</div>
       ) : (
-        <div className="grid gap-px border-t border-zinc-100 bg-zinc-100 lg:grid-cols-2">
+        <div className="grid gap-px bg-zinc-100 lg:grid-cols-2">
           {/* Theory */}
           <div className="bg-surface p-5 sm:p-6">
             <div className="eyebrow mb-3">ภาคทฤษฎี</div>
@@ -413,7 +525,7 @@ function MyCourseCard({
           </div>
         </div>
       )}
-    </Card>
+    </ExpandableCard>
   );
 }
 
